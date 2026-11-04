@@ -30,13 +30,13 @@ cours.example.com {
 }
 ```
 
-Déposer les fichiers du dépôt dans `/srv/learning-sites`, appliquer la configuration Caddy et autoriser les ports 80 et 443. Caddy peut gérer automatiquement HTTPS lorsque le DNS, les ports et ses permissions sont configurés. Ne pas exposer le dossier `.git` : pour un déploiement simple, copier seulement `index.html` et les quatre dossiers de cours dans la racine web. Pour mettre à jour le site, remplacer ces fichiers par ceux de la version voulue.
+Déposer les fichiers du dépôt dans `/srv/learning-sites`, appliquer la configuration Caddy et autoriser les ports 80 et 443. Caddy peut gérer automatiquement HTTPS lorsque le DNS, les ports et ses permissions sont configurés. Ne pas exposer le dossier `.git` : pour un déploiement simple, copier seulement `index.html`, `styles.css` et les quatre dossiers de cours dans la racine web. Pour mettre à jour le site, remplacer ces fichiers par ceux de la version voulue.
 
 Les pages sont des fichiers statiques ; aucun backend applicatif, base de données, secret ou service Node n'est nécessaire. Les liens vers Moodle et le dépôt de cours peuvent nécessiter une authentification. Les supports cités restent soumis à leurs conditions d'accès et de réutilisation ; vérifier les droits avant toute diffusion publique.
 
 ## Ajouter un cours
 
-Créer un dossier avec un `index.html` autonome, ajouter un lien dans le portail puis lancer les vérifications. Préférer des chemins relatifs pour permettre l'hébergement sous un sous-chemin.
+Créer un dossier avec un `index.html`, y lier `../styles.css`, définir une palette via `data-course`, ajouter un lien dans le portail puis lancer les vérifications. Les règles communes et les styles propres aux démonstrations sont réunis dans `styles.css`. Préférer des chemins relatifs pour permettre l'hébergement sous un sous-chemin.
 
 ## Vérification et CI
 

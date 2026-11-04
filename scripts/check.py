@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
+assert (ROOT / 'styles.css').is_file(), 'Shared stylesheet missing'
 PAGES = ['index.html', 'apriori/index.html', 'nlp/index.html', 'arbres-rouge-noir/index.html', 'markov/index.html']
 
 class Page(HTMLParser):
@@ -40,6 +41,7 @@ with tempfile.TemporaryDirectory() as temp:
                     assert (ROOT / target / 'index.html').is_file(), f'Broken portal link: {target}'
         else:
             assert parsed.scripts, f'No inline JavaScript in {page}'
+            assert 'href="../styles.css"' in path.read_text(encoding='utf-8'), f'Shared stylesheet missing in {page}'
         for i, script in enumerate(parsed.scripts):
             js = Path(temp) / f'{path.parent.name}-{i}.mjs'
             js.write_text(script, encoding='utf-8')
