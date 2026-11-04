@@ -1,0 +1,30 @@
+[
+  {
+    "path": "arbres-rouge-noir",
+    "category": "Algorithmique",
+    "index": 10,
+    "title": "Arbres rouge-noir",
+    "description": "Insertions, suppressions et rotations animées."
+  },
+  {
+    "path": "markov",
+    "category": "Apprentissage par renforcement",
+    "index": 10,
+    "title": "Décisions de Markov",
+    "description": "Politiques, valeurs et programmation dynamique."
+  },
+  {
+    "path": "nlp",
+    "category": "Traitement du langage",
+    "index": 10,
+    "title": "Représentation des textes",
+    "description": "Construire une intuition des représentations utilisées en NLP."
+  },
+  {
+    "path": "apriori",
+    "category": "Fouille de données",
+    "index": 10,
+    "title": "Règles d’association",
+    "description": "Itemsets fréquents, algorithme Apriori et règles."
+  }
+]

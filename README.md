@@ -1,14 +1,12 @@
 # Learning Sites
 
-Collection de cours interactifs : arbres rouge-noir, décisions de Markov, représentation des textes et règles d'association. Le portail relie quatre pages indépendantes, dont les animations et calculs s'exécutent dans le navigateur.
+Cours interactifs classés par matière, puis par ordre d’apprentissage : arbres rouge-noir, décisions de Markov, représentation des textes et règles d’association. Les animations et calculs s’exécutent dans le navigateur.
 
-## Prérequis
+**Production : https://learning.141-145-214-196.nip.io/**
 
-- Un navigateur récent avec JavaScript activé.
-- Python 3 pour l'aperçu local, ou un serveur HTTP statique pour la production.
-- Node.js pour les vérifications.
+## Aperçu local
 
-## Installation et aperçu
+Python 3 et un navigateur récent avec JavaScript suffisent pour consulter le site. Node.js est utilisé uniquement pour vérifier la syntaxe des scripts.
 
 ```sh
 git clone https://github.com/alexalmny/learning-sites.git
@@ -16,32 +14,87 @@ cd learning-sites
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-Ouvrir <http://localhost:8000>. Aucun paquet npm ni compilation n'est nécessaire. Le serveur Python sert uniquement à l'aperçu local.
+Ouvrir <http://localhost:8000>. Le serveur Python est réservé à l’aperçu local.
 
-## Déploiement sur une machine
+## Ajouter ou classer un cours
 
-Copier le dépôt sur la machine puis configurer un serveur HTTP pour servir ce répertoire. Par exemple, avec Caddy installé et un nom de domaine pointant vers le serveur, remplacer `cours.example.com` et le chemin dans ce fichier de configuration :
+1. Créer `<slug>/index.html`, lier `../styles.css` et définir la palette avec `data-course`, comme les cours existants. Ce dossier ne doit contenir que des fichiers publics (aucun secret ni lien symbolique).
+2. Ajouter une entrée dans `courses.json` :
 
-```caddyfile
-cours.example.com {
-    root * /srv/learning-sites
-    encode zstd gzip
-    file_server
-}
+   ```json
+   {
+     "path": "nouveau-cours",
+     "category": "Algorithmique",
+     "index": 20,
+     "title": "Nouveau cours",
+     "description": "Ce que ce cours permet de comprendre."
+   }
+   ```
+
+   Les matières sont regroupées et triées alphabétiquement. L’indice est un entier positif, unique **dans la matière**, trié numériquement. Les indices 10, 20, 30 permettent d’intercaler une étape 15. Réutiliser exactement le même nom de matière pour regrouper les pages. Actuellement chaque matière contient un cours, d’indice 10.
+3. Régénérer le portail, puis vérifier :
+
+   ```sh
+   python3 scripts/build.py --update-portal
+   python3 scripts/check.py
+   python3 -m unittest discover -s scripts -p 'test_*.py'
+   ```
+
+Versionner le catalogue, les cours et le `index.html` généré ensemble. Ne pas modifier le portail à la main : les contrôles signalent un portail périmé, les doublons, les indices invalides et les pages absentes du catalogue. Aucun JavaScript n’est nécessaire pour afficher le portail.
+
+## Déploiement sur le serveur existant
+
+Même modèle que les autres sites du serveur : **Nginx, fichiers statiques dans `/var/www`, certificat Let’s Encrypt via Certbot**. Aucun backend, paquet npm, conteneur, base de données ni service systemd supplémentaire.
+
+- Sources : `/home/ubuntu/develop/learning-sites`.
+- Versions publiques : `/var/www/learning-sites/releases/<date>-<commit>`.
+- Version active : lien symbolique `/var/www/learning-sites/current`.
+- Configuration : `/etc/nginx/sites-available/learning-sites`, activée dans `sites-enabled`.
+- HTTPS : certificat `learning.141-145-214-196.nip.io`, renouvelé par le timer Certbot ; le hook existant `reload-nginx` recharge Nginx.
+
+### Mise à jour
+
+Après récupération et revue des changements :
+
+```sh
+cd /home/ubuntu/develop/learning-sites
+# Si le checkout est propre : git pull --ff-only
+sh deploy/publish.sh
+python3 scripts/check_live.py
 ```
 
-Déposer les fichiers du dépôt dans `/srv/learning-sites`, appliquer la configuration Caddy et autoriser les ports 80 et 443. Caddy peut gérer automatiquement HTTPS lorsque le DNS, les ports et ses permissions sont configurés. Ne pas exposer le dossier `.git` : pour un déploiement simple, copier seulement `index.html`, `styles.css` et les quatre dossiers de cours dans la racine web. Pour mettre à jour le site, remplacer ces fichiers par ceux de la version voulue.
+Le script vérifie le site, teste le générateur, construit une version publique dans un répertoire temporaire, puis bascule le lien `current` atomiquement. Il ne publie ni `.git`, ni le catalogue, ni les scripts, ni la documentation. Les anciennes versions restent disponibles ; aucun rechargement Nginx n’est nécessaire pour une mise à jour de contenu. Ce n’est pas un déploiement automatique sur chaque push.
 
-Les pages sont des fichiers statiques ; aucun backend applicatif, base de données, secret ou service Node n'est nécessaire. Les liens vers Moodle et le dépôt de cours peuvent nécessiter une authentification. Les supports cités restent soumis à leurs conditions d'accès et de réutilisation ; vérifier les droits avant toute diffusion publique.
+Pour produire uniquement les fichiers publics : `python3 scripts/build.py` (crée `dist/`, qui ne doit pas déjà exister).
 
-## Ajouter un cours
+### Première installation HTTPS
 
-Créer un dossier avec un `index.html`, y lier `../styles.css`, définir une palette via `data-course`, ajouter un lien dans le portail puis lancer les vérifications. Les règles communes et les styles propres aux démonstrations sont réunis dans `styles.css`. Préférer des chemins relatifs pour permettre l'hébergement sous un sous-chemin.
+Sur ce serveur uniquement, après vérification du DNS et de l’accès aux ports 80/443 :
+
+```sh
+sh deploy/publish.sh
+sudo install -m 644 deploy/nginx-http.conf /etc/nginx/sites-available/learning-sites
+sudo ln -s /etc/nginx/sites-available/learning-sites /etc/nginx/sites-enabled/learning-sites
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot certonly --webroot -w /var/www/letsencrypt \
+  -d learning.141-145-214-196.nip.io --non-interactive --agree-tos --register-unsafely-without-email
+sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/learning-sites
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Les fichiers Nginx sont propres au nom d’hôte ci-dessus : les adapter pour un autre domaine. `noindex` et `robots.txt` limitent l’indexation, **pas l’accès public**. Les supports cités gardent leurs conditions d’accès et de réutilisation ; certains liens Moodle nécessitent une authentification.
+
+### Retour arrière
+
+Choisir une ancienne version dans `/var/www/learning-sites/releases`, puis :
+
+```sh
+sudo ln -s /var/www/learning-sites/releases/<version> /var/www/learning-sites/current.next
+sudo mv -Tf /var/www/learning-sites/current.next /var/www/learning-sites/current
+```
+
+La bascule ne touche ni aux autres sites ni aux données persistantes. Les versions conservées sur le même disque ne constituent pas une sauvegarde externe.
 
 ## Vérification et CI
 
-```sh
-python3 scripts/check.py
-```
-
-Le script vérifie la présence des pages, les liens locaux du portail et la syntaxe du JavaScript intégré avec Node. GitHub Actions lance ces contrôles sur les pushes vers `main` et les pull requests. Ces vérifications ne remplacent pas un essai manuel des animations, des calculs et de l'affichage mobile.
+GitHub Actions exécute les contrôles sur les pushes vers `main` et les pull requests : cohérence du catalogue et du portail, liens, syntaxe JavaScript via Node, tests du tri/échappement/validation et génération des fichiers publics. `python3 scripts/check_live.py` vérifie le site publié : toutes les pages du catalogue, CSS, HTTPS, en-têtes et absence d’accès aux sources internes. Ces tests ne remplacent pas une vérification des animations et de l’affichage mobile dans un navigateur.

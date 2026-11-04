@@ -255,6 +255,10 @@ html[data-course="portal"] header p{font:24px/1.55 Georgia,serif;color:var(--mut
 html[data-course="portal"] .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
 html[data-course="portal"] a.card{display:block;min-height:210px;padding:25px;color:var(--ink);text-decoration:none;background:var(--surface);border:1px solid transparent;border-radius:5px;transition:transform .2s,border-color .2s}
 html[data-course="portal"] a.card:hover{transform:translateY(-4px);border-color:var(--accent)}
-html[data-course="portal"] h2{font-size:25px;margin:30px 0 12px}
-html[data-course="portal"] article{padding:0} html[data-course="portal"] article p{font-size:16px;line-height:1.5;color:var(--muted)}
+html[data-course="portal"] section{margin:48px 0}
+html[data-course="portal"] h2{font-size:25px;margin:0 0 20px}
+html[data-course="portal"] h3{font-size:25px;margin:30px 0 12px}
+html[data-course="portal"] ol{list-style:none;padding:0}
+html[data-course="portal"] .card p{font-size:16px;line-height:1.5;color:var(--muted)}
+html[data-course="portal"] a.card:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
 html[data-course="portal"] .n {font:700 12px system-ui;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}

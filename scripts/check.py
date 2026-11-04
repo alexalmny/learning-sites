@@ -3,9 +3,13 @@ from pathlib import Path
 import subprocess
 import tempfile
 
+from build import load_courses, render_portal
+
 ROOT = Path(__file__).resolve().parent.parent
 assert (ROOT / 'styles.css').is_file(), 'Shared stylesheet missing'
-PAGES = ['index.html', 'apriori/index.html', 'nlp/index.html', 'arbres-rouge-noir/index.html', 'markov/index.html']
+COURSES = load_courses()
+PAGES = ['index.html', *(f"{course['path']}/index.html" for course in COURSES)]
+assert (ROOT / 'index.html').read_text(encoding='utf-8') == render_portal(COURSES), 'Regenerate the portal: python3 scripts/build.py --update-portal'
 
 class Page(HTMLParser):
     def __init__(self):
