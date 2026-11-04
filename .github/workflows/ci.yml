@@ -11,14 +11,71 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+      - run: python3 scripts/build.py --update-portal
       - run: python3 scripts/check.py
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - run: python3 scripts/build.py
-      - run: sh -n deploy/publish.sh
+      - run: tar -czf site.tar.gz -C dist .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: static-site
+          path: site.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://learning.141-145-214-196.nip.io/
+    concurrency:
+      group: learning-sites-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: static-site
+      - name: Publish over restricted SSH
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_KEY: ${{ secrets.LEARNING_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.LEARNING_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ "$GITHUB_SHA" != "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" ]; then
+            echo 'A newer commit is on main; skip this outdated deployment.'
+            exit 0
+          fi
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/key"
+          ssh -T -i "$ssh_dir/key" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$ssh_dir/known_hosts" \
+            learning-deploy@learning.141-145-214-196.nip.io \
+            "deploy ${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" < site.tar.gz
+          echo 'published=true' >> "$GITHUB_OUTPUT"
+      - name: Verify public HTTPS site
+        if: steps.publish.outputs.published == 'true'
+        run: python3 scripts/check_live.py

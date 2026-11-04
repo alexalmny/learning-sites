@@ -2,7 +2,7 @@
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from build import load_courses, render_portal
+from build import ROOT, load_courses, render_portal
 
 BASE = 'https://learning.141-145-214-196.nip.io'
 courses = load_courses()
@@ -11,8 +11,15 @@ for path in ['/', '/styles.css', '/robots.txt', *(f"/{c['path']}/" for c in cour
         assert response.status == 200, path
         assert 'noindex' in response.headers['X-Robots-Tag'], path
         assert 'nosniff' == response.headers['X-Content-Type-Options'], path
+        body = response.read()
         if path == '/':
-            assert response.read().decode('utf-8') == render_portal(courses), 'Deployed portal is stale'
+            expected = render_portal(courses).encode('utf-8')
+        elif path == '/robots.txt':
+            expected = b'User-agent: *\nDisallow: /\n'
+        else:
+            local = ROOT / path.strip('/')
+            expected = (local / 'index.html' if path.endswith('/') else local).read_bytes()
+        assert body == expected, f'Deployed content is stale: {path}'
         print(f'OK {BASE}{path}')
 with urlopen(BASE.replace('https:', 'http:') + '/', timeout=20) as response:
     assert response.url == BASE + '/', 'Missing HTTPS redirect'
