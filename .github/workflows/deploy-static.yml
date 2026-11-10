@@ -1,0 +1,124 @@
+name: Deploy static release
+on:
+  workflow_call:
+    inputs:
+      origin:
+        type: string
+        required: true
+      user:
+        type: string
+        required: true
+      verify-command:
+        type: string
+        default: ''
+    secrets:
+      STATIC_DEPLOY_KEY:
+        required: true
+      STATIC_DEPLOY_KNOWN_HOSTS:
+        required: true
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: ${{ inputs.origin }}
+    concurrency:
+      group: static-production-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      ORIGIN: ${{ inputs.origin }}
+      DEPLOY_USER: ${{ inputs.user }}
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: static-site
+          path: ${{ runner.temp }}/static-release
+      - name: Configure restricted SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.STATIC_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STATIC_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/static-ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/static-ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/static-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/static-ssh/"*
+          cat > "$RUNNER_TEMP/static-ssh/config" <<EOF
+          Host production
+            HostName ${ORIGIN#https://}
+            User $DEPLOY_USER
+            IdentityFile $RUNNER_TEMP/static-ssh/key
+            UserKnownHostsFile $RUNNER_TEMP/static-ssh/known_hosts
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+          EOF
+      - name: Ignore superseded commits
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'A newer commit is on main; skipping this release.'
+          fi
+      - name: Publish provisional release
+        id: publish
+        if: steps.head.outputs.current == 'true'
+        run: |
+          echo 'attempted=true' >> "$GITHUB_OUTPUT"
+          ssh -F "$RUNNER_TEMP/static-ssh/config" production "deploy $RELEASE_ID" \
+            < "$RUNNER_TEMP/static-release/site.tar.gz"
+      - name: Verify every public file from GitHub
+        if: steps.head.outputs.current == 'true'
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import tarfile
+          from urllib.parse import quote
+          from urllib.request import urlopen
+          archive = os.environ['RUNNER_TEMP'] + '/static-release/site.tar.gz'
+          with tarfile.open(archive, 'r:gz') as release:
+              for member in release:
+                  if not member.isfile():
+                      continue
+                  path = member.name.removeprefix('./')
+                  with release.extractfile(member) as source:
+                      expected = hashlib.file_digest(source, 'sha256').digest()
+                  if path.endswith('index.html'):
+                      path = path[:-len('index.html')]
+                  url = os.environ['ORIGIN'] + '/' + quote(path) + '?release=' + os.environ['RELEASE_ID']
+                  with urlopen(url, timeout=20) as response:
+                      assert response.status == 200, url
+                      actual = hashlib.file_digest(response, 'sha256').digest()
+                  assert actual == expected, f'Public content mismatch: {path}'
+                  print('OK', path or '/')
+          PY
+      - name: Additional application checks
+        if: steps.head.outputs.current == 'true' && inputs.verify-command != ''
+        env:
+          VERIFY_COMMAND: ${{ inputs.verify-command }}
+        run: bash -e -o pipefail -c "$VERIFY_COMMAND"
+      - name: Confirm healthy release
+        if: steps.head.outputs.current == 'true'
+        run: ssh -F "$RUNNER_TEMP/static-ssh/config" production "confirm $RELEASE_ID"
+      - name: Roll back failed or cancelled release
+        if: ${{ (failure() || cancelled()) && steps.publish.outputs.attempted == 'true' }}
+        run: ssh -F "$RUNNER_TEMP/static-ssh/config" production "rollback $RELEASE_ID"
+      - name: Remove deployment credential
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/static-ssh"

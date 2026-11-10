@@ -1,0 +1,30 @@
+[
+  {
+    "path": "arbres-rouge-noir",
+    "category": "Algorithmique avancée 2 (AA2)",
+    "index": 10,
+    "title": "Arbres rouge-noir",
+    "description": "Insertions, suppressions et rotations animées."
+  },
+  {
+    "path": "markov",
+    "category": "Apprentissage par renforcement (Reinforcement)",
+    "index": 10,
+    "title": "Décisions de Markov",
+    "description": "Politiques, valeurs et programmation dynamique."
+  },
+  {
+    "path": "nlp",
+    "category": "Traitement de la langue (NLP)",
+    "index": 10,
+    "title": "Représentation des textes",
+    "description": "Construire une intuition des représentations utilisées en NLP."
+  },
+  {
+    "path": "apriori",
+    "category": "Apprentissage non supervisé (Unsupervised)",
+    "index": 10,
+    "title": "Règles d’association",
+    "description": "Itemsets fréquents, algorithme Apriori et règles."
+  }
+]
